@@ -47,7 +47,23 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Allow access to public routes and auth routes
-  const publicRoutes = ["/", "/about", "/contact", "/faq", "/services", "/admin/login", "/agent/login"]
+  const publicRoutes = [
+    "/",
+    "/about",
+    "/contact",
+    "/faq",
+    "/services",
+    "/how-it-works",
+    "/report",
+    "/privacy",
+    "/terms",
+    "/success-stories",
+    "/team",
+    "/login",
+    "/signup",
+    "/admin/login",
+    "/agent/login"
+  ]
   const isPublicRoute = publicRoutes.some(
     (route) => request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith("/auth"),
   )
@@ -64,7 +80,7 @@ export async function updateSession(request: NextRequest) {
     // Only redirect for HTML document requests; avoid breaking fetch/HMR/asset requests
     if (accept.includes("text/html")) {
       const url = request.nextUrl.clone()
-      url.pathname = "/auth/login"
+      url.pathname = "/login"
       return NextResponse.redirect(url)
     }
     return supabaseResponse
