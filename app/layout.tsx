@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/next"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProviderWrapper } from "@/components/auth/auth-provider"
 import { Suspense } from "react"
+import { ClipboardPolyfill } from "@/components/utils/clipboard-polyfill"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -29,8 +30,7 @@ export default function RootLayout({
           </ThemeProvider>
         </Suspense>
         <Analytics />
-        {/* Clipboard API polyfill to avoid blocked writeText errors in iframes */}
-        <script dangerouslySetInnerHTML={{ __html: '' }} />
+        <ClipboardPolyfill />
       </body>
     </html>
   )
