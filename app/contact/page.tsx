@@ -36,7 +36,7 @@ export default function ContactPage() {
                 <CardContent>
                   <form
                     className="space-y-6"
-                    action={process.env.NEXT_PUBLIC_FORMSPREE_ENDPOINT || "https://formspree.io/f/xeolvgjp"}
+                    action={process.env.FORMSPREE_URL}
                     method="POST"
                   >
                     <div className="grid md:grid-cols-2 gap-4">

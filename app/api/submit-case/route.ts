@@ -38,16 +38,18 @@ export async function POST(request: NextRequest) {
       console.error("[v0] Error creating chat room:", chatRoomError)
     }
 
-    const formspreeEndpoint = process.env.NEXT_PUBLIC_FORMSPREE_ENDPOINT || "https://formspree.io/f/xeolvgjp"
+    const formspreeEndpoint = process.env.FORMSPREE_URL
 
-    try {
-      await fetch(formspreeEndpoint, {
-        method: "POST",
-        body: formData,
-      })
-    } catch (formspreeError) {
-      console.error("[v0] Formspree submission failed:", formspreeError)
-      // Don't fail the entire request if Formspree fails
+    if (formspreeEndpoint) {
+      try {
+        await fetch(formspreeEndpoint, {
+          method: "POST",
+          body: formData,
+        })
+      } catch (formspreeError) {
+        console.error("[v0] Formspree submission failed:", formspreeError)
+        // Don't fail the entire request if Formspree fails
+      }
     }
 
     return NextResponse.json({
