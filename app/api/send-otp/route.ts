@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { emailService } from "@/lib/email-service"
+import { OTP_COOKIE_NAME, OTP_TTL_SECONDS, createOtpSessionToken, generateOTP } from "@/lib/otp"
+import { rateLimiter } from "@/lib/security/rate-limiter"
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,25 +11,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and case ID are required" }, { status: 400 })
     }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
+    const identifier = `${ip}:${email}`
+    const allowed = rateLimiter.isAllowed(identifier, { windowMs: 10 * 60 * 1000, maxRequests: 5 })
+    if (!allowed) {
+      return NextResponse.json({ error: "Too many requests. Try again later." }, { status: 429 })
+    }
 
-    // Store OTP in database/cache (implement your storage logic here)
-    // For now, we'll store in memory (use Redis in production)
+    const otp = generateOTP(6)
 
-    // Send OTP email
-    const result = await emailService.sendOTP(email, otp, caseId)
-
-    if (result.success) {
-      return NextResponse.json({
-        success: true,
-        message: "OTP sent successfully",
-        // Don't return the actual OTP in production
-        otp: process.env.NODE_ENV === "development" ? otp : undefined,
-      })
-    } else {
+    const emailResult = await emailService.sendOTP(email, otp, caseId)
+    if (!emailResult.success) {
       return NextResponse.json({ error: "Failed to send OTP email" }, { status: 500 })
     }
+
+    const token = await createOtpSessionToken(email, caseId, otp, OTP_TTL_SECONDS)
+
+    const res = NextResponse.json({
+      success: true,
+      message: "OTP sent successfully",
+      otp: process.env.NODE_ENV === "development" ? otp : undefined,
+    })
+
+    res.cookies.set(OTP_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: OTP_TTL_SECONDS,
+    })
+
+    return res
   } catch (error) {
     console.error("[v0] Send OTP API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
