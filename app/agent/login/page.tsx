@@ -1,17 +1,16 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Shield, Eye, EyeOff } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { Eye, EyeOff, UserCheck } from "lucide-react"
+import { useAgentAuth } from "@/hooks/use-agent-auth"
 
-export default function AdminLoginPage() {
+export default function AgentLoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({
     email: "",
@@ -19,7 +18,7 @@ export default function AdminLoginPage() {
   })
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+  const { login } = useAgentAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,21 +26,9 @@ export default function AdminLoginPage() {
     setIsLoading(true)
 
     try {
-      const response = await fetch("/api/admin/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        localStorage.setItem("adminAuth", "true")
-        localStorage.setItem("adminData", JSON.stringify(data.admin))
-        router.push("/admin")
-      } else {
-        setError("Invalid admin credentials")
+      const success = await login(formData.email, formData.password)
+      if (!success) {
+        setError("Invalid agent credentials")
       }
     } catch (error) {
       setError("Authentication failed. Please try again.")
@@ -52,13 +39,13 @@ export default function AdminLoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md border-2 border-primary/10">
+      <Card className="w-full max-w-md border-2 border-blue-500/20">
         <CardHeader className="text-center">
-          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-            <Shield className="w-6 h-6 text-primary" />
+          <div className="mx-auto w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center mb-4">
+            <UserCheck className="w-6 h-6 text-blue-500" />
           </div>
-          <h1 className="text-2xl font-bold">Admin Access</h1>
-          <p className="text-sm text-muted-foreground">Secure administrative portal</p>
+          <h1 className="text-2xl font-bold">Agent Portal</h1>
+          <p className="text-sm text-muted-foreground">Recovery Specialist Access</p>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
@@ -70,26 +57,26 @@ export default function AdminLoginPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Admin Email</Label>
+              <Label htmlFor="email">Agent Email</Label>
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
-                placeholder="Enter admin email"
+                placeholder="Enter your agent email"
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Admin Password</Label>
+              <Label htmlFor="password">Agent Password</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   value={formData.password}
                   onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
-                  placeholder="Enter admin password"
+                  placeholder="Enter your password"
                   required
                 />
                 <Button
@@ -106,8 +93,8 @@ export default function AdminLoginPage() {
           </CardContent>
 
           <CardFooter>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Authenticating..." : "Access Admin Panel"}
+            <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
+              {isLoading ? "Authenticating..." : "Access Agent Portal"}
             </Button>
           </CardFooter>
         </form>

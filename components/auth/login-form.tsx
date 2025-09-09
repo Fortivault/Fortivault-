@@ -27,8 +27,8 @@ export function LoginForm() {
 
     try {
       await login(email, password)
-    } catch (err) {
-      setError("Invalid email or password")
+    } catch (err: any) {
+      setError(err.message || "Invalid email or password")
     } finally {
       setIsLoading(false)
     }
