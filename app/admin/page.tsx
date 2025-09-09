@@ -40,7 +40,7 @@ export default function AdminPage() {
 
   // Check authentication on mount
   useEffect(() => {
-    const adminAuth = localStorage.getItem("adminAuthenticated")
+    const adminAuth = localStorage.getItem("adminAuth")
     if (adminAuth === "true") {
       setIsAuthenticated(true)
       loadCases()
@@ -53,7 +53,7 @@ export default function AdminPage() {
 
     if (email === "super@admin.com" && password === "Admin001") {
       setIsAuthenticated(true)
-      localStorage.setItem("adminAuthenticated", "true")
+      localStorage.setItem("adminAuth", "true")
       loadCases()
     } else {
       setLoginError("Invalid credentials. Please check your email and password.")
@@ -62,7 +62,7 @@ export default function AdminPage() {
 
   const handleLogout = () => {
     setIsAuthenticated(false)
-    localStorage.removeItem("adminAuthenticated")
+    localStorage.removeItem("adminAuth")
     setEmail("")
     setPassword("")
   }
