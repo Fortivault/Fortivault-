@@ -35,11 +35,40 @@ export function UserDashboard() {
   const { user, profile } = useAuth()
 
   useEffect(() => {
-    if (!user?.email) return
-
     let channel: ReturnType<typeof supabase.channel> | null = null
 
-    const load = async () => {
+    const loadFromLocal = () => {
+      const activeCaseId = localStorage.getItem("activeCaseId")
+      const cases: CaseData[] = []
+      if (activeCaseId) {
+        const caseData = localStorage.getItem(`case_${activeCaseId}`)
+        if (caseData) {
+          const parsedCase = JSON.parse(caseData)
+          cases.push({
+            id: parsedCase.caseId,
+            type:
+              parsedCase.scamType === "crypto"
+                ? "Cryptocurrency Fraud"
+                : parsedCase.scamType === "fiat"
+                  ? "Wire Transfer Fraud"
+                  : "Other Fraud",
+            amount: parsedCase.amount,
+            currency: parsedCase.currency,
+            status: parsedCase.status || "intake",
+            createdAt: parsedCase.submissionDate,
+            lastUpdate: parsedCase.submissionDate,
+            assignedAgent: "Recovery Specialist",
+            priority: "high",
+            description: parsedCase.description,
+          })
+        }
+      }
+      setActiveCases(cases)
+      if (cases.length > 0) setSelectedCase(cases[0])
+    }
+
+    const loadFromSupabase = async () => {
+      if (!user?.email) return
       setIsLoading(true)
       const { data, error } = await supabase
         .from("cases")
@@ -68,50 +97,62 @@ export function UserDashboard() {
         if (mapped.length > 0) setSelectedCase(mapped[0])
       }
       setIsLoading(false)
+
+      channel = supabase
+        .channel(`victim_cases_${user.id}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "cases", filter: `victim_email=eq.${user.email}` },
+          (payload) => {
+            const c: any = payload.new
+            if (!c) return
+            setActiveCases((prev) => {
+              const mapped: CaseData = {
+                id: c.case_id,
+                type:
+                  c.scam_type === "crypto"
+                    ? "Cryptocurrency Fraud"
+                    : c.scam_type === "fiat"
+                      ? "Wire Transfer Fraud"
+                      : "Other Fraud",
+                amount: String(c.amount ?? ""),
+                currency: c.currency ?? "",
+                status: c.status || "intake",
+                createdAt: c.created_at,
+                lastUpdate: c.updated_at,
+                assignedAgent: "Recovery Specialist",
+                priority: "high",
+                description: c.description ?? "",
+              }
+              const idx = prev.findIndex((p) => p.id === mapped.id)
+              if (idx >= 0) {
+                const cp = [...prev]
+                cp[idx] = mapped
+                return cp
+              }
+              return [mapped, ...prev]
+            })
+          },
+        )
+        .subscribe()
     }
 
-    load()
+    setIsLoading(true)
+    if (user?.email) {
+      loadFromSupabase()
+    } else {
+      loadFromLocal()
+      setIsLoading(false)
+    }
 
-    channel = supabase
-      .channel(`victim_cases_${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "cases", filter: `victim_email=eq.${user.email}` },
-        (payload) => {
-          const c: any = payload.new
-          if (!c) return
-          setActiveCases((prev) => {
-            const mapped: CaseData = {
-              id: c.case_id,
-              type:
-                c.scam_type === "crypto"
-                  ? "Cryptocurrency Fraud"
-                  : c.scam_type === "fiat"
-                    ? "Wire Transfer Fraud"
-                    : "Other Fraud",
-              amount: String(c.amount ?? ""),
-              currency: c.currency ?? "",
-              status: c.status || "intake",
-              createdAt: c.created_at,
-              lastUpdate: c.updated_at,
-              assignedAgent: "Recovery Specialist",
-              priority: "high",
-              description: c.description ?? "",
-            }
-            const idx = prev.findIndex((p) => p.id === mapped.id)
-            if (idx >= 0) {
-              const cp = [...prev]
-              cp[idx] = mapped
-              return cp
-            }
-            return [mapped, ...prev]
-          })
-        },
-      )
-      .subscribe()
+    const handleStorageChange = () => {
+      if (!user?.email) loadFromLocal()
+    }
+    window.addEventListener("storage", handleStorageChange)
 
     return () => {
       if (channel) supabase.removeChannel(channel)
+      window.removeEventListener("storage", handleStorageChange)
     }
   }, [user?.email, user?.id, supabase])
 
