@@ -9,6 +9,14 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  headers: async () => [
+    {
+      source: "/(.*)",
+      headers: [
+        { key: "Permissions-Policy", value: "clipboard-read=* , clipboard-write=*" },
+      ],
+    },
+  ],
 }
 
 export default nextConfig
