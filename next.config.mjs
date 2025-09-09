@@ -14,6 +14,9 @@ const nextConfig = {
       source: "/(.*)",
       headers: [
         { key: "Permissions-Policy", value: "clipboard-read=* , clipboard-write=*" },
+        { key: "Access-Control-Allow-Origin", value: "*" },
+        { key: "Access-Control-Allow-Methods", value: "GET,POST,PUT,PATCH,DELETE,OPTIONS" },
+        { key: "Access-Control-Allow-Headers", value: "*" },
       ],
     },
   ],
