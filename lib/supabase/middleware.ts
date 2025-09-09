@@ -55,10 +55,14 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (!user && !isPublicRoute) {
-    // no user, potentially respond by redirecting the user to the login page
-    const url = request.nextUrl.clone()
-    url.pathname = "/auth/login"
-    return NextResponse.redirect(url)
+    const accept = request.headers.get("accept") || ""
+    // Only redirect for HTML document requests; avoid breaking fetch/HMR/asset requests
+    if (accept.includes("text/html")) {
+      const url = request.nextUrl.clone()
+      url.pathname = "/auth/login"
+      return NextResponse.redirect(url)
+    }
+    return supabaseResponse
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.
