@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     res.cookies.set(OTP_COOKIE_NAME, token, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV !== "development",
       sameSite: "lax",
       path: "/",
       maxAge: OTP_TTL_SECONDS,
