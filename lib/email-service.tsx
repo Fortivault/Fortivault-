@@ -11,7 +11,7 @@ class EmailService {
   private transporter: nodemailer.Transporter
 
   constructor() {
-    this.transporter = nodemailer.createTransporter({
+    this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number.parseInt(process.env.SMTP_PORT || "587"),
       secure: false, // true for 465, false for other ports
@@ -124,7 +124,7 @@ class EmailService {
         
         <div style="text-align: center; padding: 20px; color: #64748b; font-size: 12px;">
           <p>Fortivault | Built to protect. Trusted to Secure | 24/7 Support Available</p>
-          <p>Need help? Reply to this email or contact fortivault@aol.com</p>
+          <p>Need help? Reply to this email or contact services.fortivault@gmx.us</p>
         </div>
       </div>
     `
