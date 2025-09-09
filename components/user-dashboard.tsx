@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button"
 import { CaseOverview } from "@/components/dashboard/case-overview"
 import { CaseTimeline } from "@/components/dashboard/case-timeline"
 import { EvidenceManager } from "@/components/dashboard/evidence-manager"
-import { ChatSystem } from "@/components/chat/chat-system"
+import { RealTimeChatSystem } from "@/components/chat/real-time-chat-system"
 import { FileText, Shield, MessageCircle, AlertCircle } from "lucide-react"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/hooks/use-auth"
 
 interface CaseData {
   id: string
@@ -29,52 +31,89 @@ export function UserDashboard() {
   const [activeCases, setActiveCases] = useState<CaseData[]>([])
   const [selectedCase, setSelectedCase] = useState<CaseData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const supabase = createClient()
+  const { user, profile } = useAuth()
 
   useEffect(() => {
-    const checkActiveCases = () => {
-      const activeCaseId = localStorage.getItem("activeCaseId")
-      const cases: CaseData[] = []
+    if (!user?.email) return
 
-      if (activeCaseId) {
-        const caseData = localStorage.getItem(`case_${activeCaseId}`)
-        if (caseData) {
-          const parsedCase = JSON.parse(caseData)
-          cases.push({
-            id: parsedCase.caseId,
-            type:
-              parsedCase.scamType === "crypto"
-                ? "Cryptocurrency Fraud"
-                : parsedCase.scamType === "fiat"
-                  ? "Wire Transfer Fraud"
-                  : "Other Fraud",
-            amount: parsedCase.amount,
-            currency: parsedCase.currency,
-            status: parsedCase.status || "intake",
-            createdAt: parsedCase.submissionDate,
-            lastUpdate: parsedCase.submissionDate,
-            assignedAgent: "Recovery Specialist",
-            priority: "high",
-            description: parsedCase.description,
-          })
-        }
-      }
+    let channel: ReturnType<typeof supabase.channel> | null = null
 
-      setActiveCases(cases)
-      if (cases.length > 0) {
-        setSelectedCase(cases[0])
+    const load = async () => {
+      setIsLoading(true)
+      const { data, error } = await supabase
+        .from("cases")
+        .select("id, case_id, scam_type, amount, currency, status, created_at, updated_at, description")
+        .eq("victim_email", user.email)
+        .order("updated_at", { ascending: false })
+      if (!error) {
+        const mapped: CaseData[] = (data || []).map((c: any) => ({
+          id: c.case_id,
+          type:
+            c.scam_type === "crypto"
+              ? "Cryptocurrency Fraud"
+              : c.scam_type === "fiat"
+                ? "Wire Transfer Fraud"
+                : "Other Fraud",
+          amount: String(c.amount ?? ""),
+          currency: c.currency ?? "",
+          status: c.status || "intake",
+          createdAt: c.created_at,
+          lastUpdate: c.updated_at,
+          assignedAgent: "Recovery Specialist",
+          priority: "high",
+          description: c.description ?? "",
+        }))
+        setActiveCases(mapped)
+        if (mapped.length > 0) setSelectedCase(mapped[0])
       }
       setIsLoading(false)
     }
 
-    checkActiveCases()
+    load()
 
-    const handleStorageChange = () => {
-      checkActiveCases()
+    channel = supabase
+      .channel(`victim_cases_${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "cases", filter: `victim_email=eq.${user.email}` },
+        (payload) => {
+          const c: any = payload.new
+          if (!c) return
+          setActiveCases((prev) => {
+            const mapped: CaseData = {
+              id: c.case_id,
+              type:
+                c.scam_type === "crypto"
+                  ? "Cryptocurrency Fraud"
+                  : c.scam_type === "fiat"
+                    ? "Wire Transfer Fraud"
+                    : "Other Fraud",
+              amount: String(c.amount ?? ""),
+              currency: c.currency ?? "",
+              status: c.status || "intake",
+              createdAt: c.created_at,
+              lastUpdate: c.updated_at,
+              assignedAgent: "Recovery Specialist",
+              priority: "high",
+              description: c.description ?? "",
+            }
+            const idx = prev.findIndex((p) => p.id === mapped.id)
+            if (idx >= 0) {
+              const cp = [...prev]
+              cp[idx] = mapped
+              return cp
+            }
+            return [mapped, ...prev]
+          })
+        },
+      )
+      .subscribe()
+
+    return () => {
+      if (channel) supabase.removeChannel(channel)
     }
-
-    window.addEventListener("storage", handleStorageChange)
-    return () => window.removeEventListener("storage", handleStorageChange)
-  }, [])
+  }, [user?.email, user?.id, supabase])
 
   if (isLoading) {
     return (
@@ -241,7 +280,17 @@ export function UserDashboard() {
                   </TabsContent>
 
                   <TabsContent value="chat" className="mt-6">
-                    <ChatSystem caseId={selectedCase.id} isAgentOnline={true} />
+                    {user && (
+                      <RealTimeChatSystem
+                        caseId={selectedCase.id}
+                        userType="victim"
+                        userId={user.id}
+                        userName={profile?.first_name ? `${profile.first_name} ${profile?.last_name ?? ""}`.trim() : user.email!}
+                        victimEmail={user.email!}
+                        otherPartyName="Assigned Agent"
+                        isOtherPartyOnline={false}
+                      />
+                    )}
                   </TabsContent>
                 </Tabs>
               </CardContent>
