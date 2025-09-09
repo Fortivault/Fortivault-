@@ -1,8 +1,10 @@
 import { Navigation } from "@/components/navigation"
-import { TrustSection } from "@/components/trust-section"
+import dynamic from "next/dynamic"
 import { Footer } from "@/components/footer"
-import { CTABanner } from "@/components/cta-banner"
 import { Shield, Users, Award, Clock } from "lucide-react"
+
+const TrustSection = dynamic(() => import("@/components/trust-section").then((m) => m.TrustSection), { ssr: false })
+const CTABanner = dynamic(() => import("@/components/cta-banner").then((m) => m.CTABanner), { ssr: false })
 
 export default function AboutPage() {
   return (
