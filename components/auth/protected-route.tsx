@@ -16,21 +16,23 @@ export function ProtectedRoute({ children, requiredRole, redirectTo = "/login" }
   const { user, profile, isLoading } = useAuth()
   const router = useRouter()
 
+  // Allow token-based access for victims via emailed link
+  const hasTokenAccess = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("token")
+
   useEffect(() => {
     if (!isLoading) {
-      if (!user) {
+      if (!user && !hasTokenAccess) {
         router.push(redirectTo)
         return
       }
 
-      if (requiredRole && profile && profile.role !== requiredRole) {
-        // Redirect to appropriate dashboard based on role
+      if (!hasTokenAccess && requiredRole && profile && profile.role !== requiredRole) {
         const dashboardPath = profile.role === "reviewer" ? "/reviewer" : "/dashboard"
         router.push(dashboardPath)
         return
       }
     }
-  }, [user, profile, isLoading, requiredRole, redirectTo, router])
+  }, [user, profile, isLoading, requiredRole, redirectTo, router, hasTokenAccess])
 
   if (isLoading) {
     return (
@@ -40,7 +42,7 @@ export function ProtectedRoute({ children, requiredRole, redirectTo = "/login" }
     )
   }
 
-  if (!user || !profile || (requiredRole && profile.role !== requiredRole)) {
+  if ((!user && !hasTokenAccess) || (!hasTokenAccess && requiredRole && profile && profile.role !== requiredRole)) {
     return null
   }
 
