@@ -11,25 +11,31 @@ class EmailService {
   private transporter: nodemailer.Transporter
 
   constructor() {
+    const port = Number.parseInt(process.env.SMTP_PORT || "587")
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
-      port: Number.parseInt(process.env.SMTP_PORT || "587"),
-      secure: false, // true for 465, false for other ports
+      port,
+      secure: port === 465,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
+      tls: { rejectUnauthorized: true },
     })
   }
 
   async sendEmail({ to, subject, html, text }: EmailOptions) {
     try {
+      const fromAddr = process.env.SMTP_FROM
+      const fromName = process.env.EMAIL_FROM
+      const from = fromAddr ? (fromName ? `${fromName} <${fromAddr}>` : fromAddr) : fromName
+
       const info = await this.transporter.sendMail({
-        from: process.env.SMTP_FROM || process.env.EMAIL_FROM,
+        from: from || undefined,
         to,
         subject,
         html,
-        text: text || html.replace(/<[^>]*>/g, ""), // Strip HTML for text version
+        text: text || html.replace(/<[^>]*>/g, ""),
       })
 
       console.log("[v0] Email sent successfully:", info.messageId)
