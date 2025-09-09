@@ -13,8 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { AdminCaseList } from "@/components/admin/admin-case-list"
 import { AdminStats } from "@/components/admin/admin-stats"
-import { AgentChatSystem } from "@/components/chat/agent-chat-system"
+import { AgentVictimCommunicationHub } from "@/components/chat/agent-victim-communication-hub"
 import { Shield, Users, FileText, MessageCircle, Lock } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 interface AdminCase {
   id: string
@@ -37,6 +38,7 @@ export default function AdminPage() {
   const [cases, setCases] = useState<AdminCase[]>([])
   const [selectedCase, setSelectedCase] = useState<AdminCase | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const supabase = createClient()
 
   // Check authentication on mount
   useEffect(() => {
@@ -46,6 +48,21 @@ export default function AdminPage() {
       loadCases()
     }
   }, [])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const channel = supabase
+      .channel("admin_cases")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "cases" },
+        () => loadCases(),
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [isAuthenticated, supabase])
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,91 +84,52 @@ export default function AdminPage() {
     setPassword("")
   }
 
-  const loadCases = () => {
+  const loadCases = async () => {
     setIsLoading(true)
-    const loadedCases: AdminCase[] = []
+    const { data, error } = await supabase
+      .from("cases")
+      .select("id, case_id, scam_type, amount, currency, status, created_at, updated_at, victim_email, description")
+      .order("updated_at", { ascending: false })
 
-    // Load cases from localStorage
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key?.startsWith("case_")) {
-        const caseData = localStorage.getItem(key)
-        if (caseData) {
-          const parsedCase = JSON.parse(caseData)
-          loadedCases.push({
-            id: parsedCase.caseId,
-            type:
-              parsedCase.scamType === "crypto"
-                ? "Cryptocurrency Fraud"
-                : parsedCase.scamType === "fiat"
-                  ? "Wire Transfer Fraud"
-                  : "Other Fraud",
-            amount: parsedCase.amount,
-            currency: parsedCase.currency,
-            status: parsedCase.status || "intake",
-            priority: "high",
-            submissionDate: parsedCase.submissionDate,
-            lastUpdate: parsedCase.submissionDate,
-            contactEmail: parsedCase.contactEmail,
-            description: parsedCase.description,
-          })
-        }
-      }
-    }
-
-    setCases(loadedCases)
-    if (loadedCases.length > 0) {
-      setSelectedCase(loadedCases[0])
+    if (!error) {
+      const loadedCases: AdminCase[] = (data || []).map((c: any) => ({
+        id: c.case_id,
+        type:
+          c.scam_type === "crypto"
+            ? "Cryptocurrency Fraud"
+            : c.scam_type === "fiat"
+              ? "Wire Transfer Fraud"
+              : "Other Fraud",
+        amount: String(c.amount ?? ""),
+        currency: c.currency ?? "",
+        status: c.status || "intake",
+        priority: "high",
+        submissionDate: c.created_at,
+        lastUpdate: c.updated_at,
+        contactEmail: c.victim_email,
+        description: c.description ?? "",
+      }))
+      setCases(loadedCases)
+      if (loadedCases.length > 0) setSelectedCase(loadedCases[0])
     }
     setIsLoading(false)
   }
 
-  const updateCaseStatus = (caseId: string, newStatus: string) => {
-    const caseKey = `case_${caseId}`
-    const caseData = localStorage.getItem(caseKey)
-    if (caseData) {
-      const parsedCase = JSON.parse(caseData)
-      parsedCase.status = newStatus
-      parsedCase.lastUpdate = new Date().toISOString()
-      localStorage.setItem(caseKey, JSON.stringify(parsedCase))
-
-      // Trigger storage event for real-time updates
-      window.dispatchEvent(
-        new StorageEvent("storage", {
-          key: caseKey,
-          newValue: JSON.stringify(parsedCase),
-        }),
-      )
-
-      loadCases()
-    }
+  const updateCaseStatus = async (caseHumanId: string, newStatus: string) => {
+    // Find DB uuid first
+    const { data: caseRow } = await supabase.from("cases").select("id").eq("case_id", caseHumanId).single()
+    if (!caseRow) return
+    await supabase.from("cases").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", caseRow.id)
+    await loadCases()
   }
 
-  const addCaseNote = (caseId: string, note: string) => {
-    const caseKey = `case_${caseId}`
-    const caseData = localStorage.getItem(caseKey)
-    if (caseData) {
-      const parsedCase = JSON.parse(caseData)
-      if (!parsedCase.notes) parsedCase.notes = []
-      parsedCase.notes.push({
-        id: Date.now().toString(),
-        content: note,
-        timestamp: new Date().toISOString(),
-        author: "Admin",
-      })
-      parsedCase.lastUpdate = new Date().toISOString()
-      localStorage.setItem(caseKey, JSON.stringify(parsedCase))
-
-      // Trigger storage event for real-time updates
-      window.dispatchEvent(
-        new StorageEvent("storage", {
-          key: caseKey,
-          newValue: JSON.stringify(parsedCase),
-        }),
-      )
-
-      loadCases()
-    }
+  const addCaseNote = async (caseHumanId: string, note: string) => {
+    const { data: caseRow } = await supabase.from("cases").select("id").eq("case_id", caseHumanId).single()
+    if (!caseRow) return
+    await supabase
+      .from("case_notes")
+      .insert({ case_id: caseRow.id, agent_id: "admin-super", note_type: "admin", content: note, is_confidential: true, priority: "normal" })
+    await loadCases()
   }
 
   if (!isAuthenticated) {
@@ -373,7 +351,13 @@ export default function AdminPage() {
                     </TabsContent>
 
                     <TabsContent value="chat" className="mt-6">
-                      <AgentChatSystem caseId={selectedCase.id} />
+                      <AgentVictimCommunicationHub
+                        caseId={selectedCase.id}
+                        victimEmail={selectedCase.contactEmail}
+                        agentId="admin-super"
+                        agentName="Admin Supervisor"
+                        isVictimOnline={false}
+                      />
                     </TabsContent>
                   </Tabs>
                 </CardContent>
