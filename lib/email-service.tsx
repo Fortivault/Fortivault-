@@ -105,12 +105,18 @@ class EmailService {
             <p style="margin: 5px 0;"><strong>Assigned Agent:</strong> Will be assigned within 24 hours</p>
           </div>
           
-          <div style="text-align: center; margin: 30px 0;">
+          <div style="background: #ecfdf5; padding: 15px; border-radius: 6px; border-left: 4px solid #059669;">
+            <h4 style="color: #065f46; margin-top: 0;">Secure Access</h4>
+            <p style="color:#065f46; margin: 0 0 8px 0;">We've sent a separate secure magic link to your email. Click that link to sign in automatically and access your dashboard.</p>
+            <p style="color:#065f46; margin: 0;">If you're already signed in, you can also access your dashboard here:</p>
+          </div>
+
+          <div style="text-align: center; margin: 20px 0 30px;">
             <a href="${dashboardLink}" style="background: linear-gradient(135deg, #1e3a8a 0%, #059669 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
               Access Your Dashboard
             </a>
           </div>
-          
+
           <div style="background: #ecfdf5; padding: 15px; border-radius: 6px; border-left: 4px solid #059669;">
             <h4 style="color: #065f46; margin-top: 0;">What happens next?</h4>
             <ul style="color: #065f46; margin: 0; padding-left: 20px;">
@@ -120,10 +126,10 @@ class EmailService {
               <li>We'll begin the recovery process immediately</li>
             </ul>
           </div>
-          
+
           <div style="background: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b; margin-top: 20px;">
             <p style="font-size: 14px; color: #92400e; margin: 0;">
-              <strong>Important:</strong> Keep this email safe. Your dashboard link is unique and secure. This link will expire when your case is closed.
+              <strong>Important:</strong> Keep this email safe. Your access is protected by secure magic links.
             </p>
           </div>
         </div>
