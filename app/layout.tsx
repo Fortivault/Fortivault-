@@ -29,6 +29,8 @@ export default function RootLayout({
           </ThemeProvider>
         </Suspense>
         <Analytics />
+        {/* Clipboard API polyfill to avoid blocked writeText errors in iframes */}
+        <script dangerouslySetInnerHTML={{ __html: '' }} />
       </body>
     </html>
   )
