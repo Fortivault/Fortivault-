@@ -34,45 +34,56 @@ export default function ContactPage() {
                   <CardTitle>Send us a Message</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <form className="space-y-6">
+                  <form
+                    className="space-y-6"
+                    action={process.env.NEXT_PUBLIC_FORMSPREE_ENDPOINT || "https://formspree.io/f/xeolvgjp"}
+                    method="POST"
+                  >
                     <div className="grid md:grid-cols-2 gap-4">
                       <div>
                         <label htmlFor="firstName" className="block text-sm font-medium mb-2">
                           First Name
                         </label>
-                        <Input id="firstName" placeholder="Enter your first name" />
+                        <Input id="firstName" name="firstName" placeholder="Enter your first name" required />
                       </div>
                       <div>
                         <label htmlFor="lastName" className="block text-sm font-medium mb-2">
                           Last Name
                         </label>
-                        <Input id="lastName" placeholder="Enter your last name" />
+                        <Input id="lastName" name="lastName" placeholder="Enter your last name" required />
                       </div>
                     </div>
                     <div>
                       <label htmlFor="email" className="block text-sm font-medium mb-2">
                         Email Address
                       </label>
-                      <Input id="email" type="email" placeholder="Enter your email" />
+                      <Input id="email" name="email" type="email" placeholder="Enter your email" required />
                     </div>
                     <div>
                       <label htmlFor="phone" className="block text-sm font-medium mb-2">
                         Phone Number
                       </label>
-                      <Input id="phone" type="tel" placeholder="Enter your phone number" />
+                      <Input id="phone" name="phone" type="tel" placeholder="Enter your phone number" />
                     </div>
                     <div>
                       <label htmlFor="subject" className="block text-sm font-medium mb-2">
                         Subject
                       </label>
-                      <Input id="subject" placeholder="What can we help you with?" />
+                      <Input id="subject" name="subject" placeholder="What can we help you with?" required />
                     </div>
                     <div>
                       <label htmlFor="message" className="block text-sm font-medium mb-2">
                         Message
                       </label>
-                      <Textarea id="message" placeholder="Tell us about your situation..." className="min-h-[120px]" />
+                      <Textarea
+                        id="message"
+                        name="message"
+                        placeholder="Tell us about your situation..."
+                        className="min-h-[120px]"
+                        required
+                      />
                     </div>
+                    <input type="hidden" name="form_type" value="contact_form" />
                     <Button type="submit" className="w-full">
                       Send Message
                     </Button>

@@ -78,7 +78,7 @@ export function FraudReportingWizard() {
       const generatedCaseId = `CSRU-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
       setCaseId(generatedCaseId)
 
-      // Prepare form data for Formspree
+      // Prepare form data
       const formData = new FormData()
 
       // Add all form fields
@@ -100,14 +100,15 @@ export function FraudReportingWizard() {
       })
       formData.append("evidenceFileCount", data.evidenceFiles.length.toString())
 
-      const formspreeEndpoint = process.env.NEXT_PUBLIC_FORMSPREE_ENDPOINT || "https://formspree.io/f/xeolvgjp"
-      const response = await fetch(formspreeEndpoint, {
+      const response = await fetch("/api/submit-case", {
         method: "POST",
         body: formData,
       })
 
-      if (!response.ok) {
-        throw new Error("Failed to submit form")
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to submit form")
       }
 
       const caseData = {
