@@ -4,6 +4,9 @@ import { OTP_COOKIE_NAME, verifyOtpSessionToken, verifyOTPHash } from "@/lib/otp
 import { rateLimiter } from "@/lib/security/rate-limiter"
 import { randomBytes } from "crypto"
 
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+
 export async function POST(request: NextRequest) {
   try {
     const { email, otp, caseId } = await request.json()
