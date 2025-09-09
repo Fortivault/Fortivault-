@@ -3,6 +3,9 @@ import { emailService } from "@/lib/email-service"
 import { OTP_COOKIE_NAME, OTP_TTL_SECONDS, createOtpSessionToken, generateOTP } from "@/lib/otp"
 import { rateLimiter } from "@/lib/security/rate-limiter"
 
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+
 export async function POST(request: NextRequest) {
   try {
     const { email, caseId } = await request.json()
