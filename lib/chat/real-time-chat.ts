@@ -98,20 +98,45 @@ export class RealTimeChatService {
   }
 
   async createOrGetChatRoom(caseId: string, victimEmail: string) {
-    // First try to get existing chat room
-    const { data: existingRoom } = await this.supabase.from("chat_rooms").select("*").eq("case_id", caseId).single()
+    // Resolve caseId: accepts human-readable cases.case_id or DB UUID id
+    // 1) Try to find chat room via join on cases.case_id
+    const { data: roomByHuman } = await this.supabase
+      .from("chat_rooms")
+      .select(
+        `*, cases!inner(id, case_id)`
+      )
+      .eq("cases.case_id", caseId)
+      .single()
 
-    if (existingRoom) {
-      return existingRoom
-    }
+    if (roomByHuman) return roomByHuman
 
-    // Create new chat room
+    // 2) Try direct match (if caller passed DB uuid)
+    const { data: roomByUuid } = await this.supabase
+      .from("chat_rooms")
+      .select("*")
+      .eq("case_id", caseId)
+      .single()
+
+    if (roomByUuid) return roomByUuid
+
+    // 3) Lookup case row to get DB uuid from human case id
+    const { data: caseRow, error: caseErr } = await this.supabase
+      .from("cases")
+      .select("id, case_id, victim_email")
+      .or(`case_id.eq.${caseId},id.eq.${caseId}`)
+      .single()
+
+    if (caseErr || !caseRow) throw caseErr || new Error("Case not found for chat room creation")
+
+    const caseUuid = caseRow.id
+
+    // Create new chat room with the resolved case uuid
     const { data, error } = await this.supabase
       .from("chat_rooms")
       .insert({
-        case_id: caseId,
-        victim_email: victimEmail,
-        assigned_agent_id: "550e8400-e29b-41d4-a716-446655440001", // Default to Sarah Martinez
+        case_id: caseUuid,
+        victim_email: victimEmail || caseRow.victim_email,
+        assigned_agent_id: "550e8400-e29b-41d4-a716-446655440001",
       })
       .select()
       .single()
