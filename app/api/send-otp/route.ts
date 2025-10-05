@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
     const res = NextResponse.json({
       success: true,
       message: "OTP sent successfully",
+      emailDispatched,
       otp: process.env.NODE_ENV === "development" ? otp : undefined,
     })
 
