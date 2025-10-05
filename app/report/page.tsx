@@ -1,6 +1,7 @@
 import { Navigation } from "@/components/navigation"
 import { Footer } from "@/components/footer"
 import { FraudReportingWizard } from "@/components/fraud-reporting-wizard"
+import { WarmupGate } from "@/components/warmup-pinger"
 
 export default function ReportPage() {
   return (
@@ -15,7 +16,9 @@ export default function ReportPage() {
                 Help us help you recover your funds by providing detailed information about the fraud incident.
               </p>
             </div>
-            <FraudReportingWizard />
+            <WarmupGate>
+              <FraudReportingWizard />
+            </WarmupGate>
           </div>
         </div>
       </main>
