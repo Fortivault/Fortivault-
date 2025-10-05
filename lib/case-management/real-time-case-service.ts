@@ -1,7 +1,7 @@
 "use client"
 
 import { createClient } from "@/lib/supabase/client"
-import type { RealtimeChannel } from "@supabase/supabase-js"
+import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js"
 
 export interface Case {
   id: string
@@ -59,9 +59,16 @@ export interface CaseAssignment {
 }
 
 export class RealTimeCaseService {
-  private supabase = createClient()
+  private supabase: SupabaseClient | null = null
   private caseChannel: RealtimeChannel | null = null
   private agentChannel: RealtimeChannel | null = null
+
+  private getClient(): SupabaseClient {
+    if (!this.supabase) {
+      this.supabase = createClient()
+    }
+    return this.supabase
+  }
 
   // Subscribe to case updates for an agent
   subscribeToCaseUpdates(
@@ -71,95 +78,108 @@ export class RealTimeCaseService {
     onCaseNote: (note: CaseNote) => void,
     onAgentActivity: (activity: AgentActivity) => void,
   ) {
-    this.caseChannel = this.supabase
-      .channel(`agent_cases_${agentId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "cases",
-          filter: `assigned_agent_id=eq.${agentId}`,
-        },
-        (payload) => {
-          if (payload.eventType === "UPDATE" || payload.eventType === "INSERT") {
-            onCaseUpdate(payload.new as Case)
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "case_assignments",
-          filter: `agent_id=eq.${agentId}`,
-        },
-        (payload) => {
-          onCaseAssignment(payload.new as CaseAssignment)
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "case_notes",
-        },
-        (payload) => {
-          onCaseNote(payload.new as CaseNote)
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "agent_activity_logs",
-          filter: `agent_id=eq.${agentId}`,
-        },
-        (payload) => {
-          onAgentActivity(payload.new as AgentActivity)
-        },
-      )
-      .subscribe()
+    try {
+      const client = this.getClient()
+      this.caseChannel = client
+        .channel(`agent_cases_${agentId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "cases",
+            filter: `assigned_agent_id=eq.${agentId}`,
+          },
+          (payload) => {
+            if (payload.eventType === "UPDATE" || payload.eventType === "INSERT") {
+              onCaseUpdate(payload.new as Case)
+            }
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "case_assignments",
+            filter: `agent_id=eq.${agentId}`,
+          },
+          (payload) => {
+            onCaseAssignment(payload.new as CaseAssignment)
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "case_notes",
+          },
+          (payload) => {
+            onCaseNote(payload.new as CaseNote)
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "agent_activity_logs",
+            filter: `agent_id=eq.${agentId}`,
+          },
+          (payload) => {
+            onAgentActivity(payload.new as AgentActivity)
+          },
+        )
+        .subscribe()
 
-    return this.caseChannel
+      return this.caseChannel
+    } catch (err) {
+      console.warn("Realtime case updates unavailable: Supabase is not configured.")
+      return null
+    }
   }
 
   // Subscribe to agent presence updates
   subscribeToAgentPresence(onAgentStatusChange: (agentId: string, isOnline: boolean, lastSeen: string) => void) {
-    this.agentChannel = this.supabase
-      .channel("agent_presence")
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "agents",
-        },
-        (payload) => {
-          const agent = payload.new as any
-          onAgentStatusChange(agent.id, agent.is_online, agent.last_seen)
-        },
-      )
-      .on("presence", { event: "sync" }, () => {
-        // Handle presence sync
-      })
-      .on("presence", { event: "join" }, ({ key, newPresences }) => {
-        // Handle agent joining
-      })
-      .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
-        // Handle agent leaving
-      })
-      .subscribe()
+    try {
+      const client = this.getClient()
+      this.agentChannel = client
+        .channel("agent_presence")
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "agents",
+          },
+          (payload) => {
+            const agent = payload.new as any
+            onAgentStatusChange(agent.id, agent.is_online, agent.last_seen)
+          },
+        )
+        .on("presence", { event: "sync" }, () => {
+          // Handle presence sync
+        })
+        .on("presence", { event: "join" }, ({ key, newPresences }) => {
+          // Handle agent joining
+        })
+        .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
+          // Handle agent leaving
+        })
+        .subscribe()
 
-    return this.agentChannel
+      return this.agentChannel
+    } catch (err) {
+      console.warn("Agent presence realtime unavailable: Supabase is not configured.")
+      return null
+    }
   }
 
   // Update case status
   async updateCaseStatus(caseId: string, status: string, agentId: string) {
-    const { data, error } = await this.supabase
+    const client = this.getClient()
+    const { data, error } = await client
       .from("cases")
       .update({
         status,
@@ -180,7 +200,8 @@ export class RealTimeCaseService {
 
   // Update case priority
   async updateCasePriority(caseId: string, priority: string, agentId: string) {
-    const { data, error } = await this.supabase
+    const client = this.getClient()
+    const { data, error } = await client
       .from("cases")
       .update({
         priority,
@@ -199,8 +220,9 @@ export class RealTimeCaseService {
 
   // Assign case to agent
   async assignCase(caseId: string, agentId: string, assignedBy: string) {
+    const client = this.getClient()
     // Update case assignment
-    const { data: caseData, error: caseError } = await this.supabase
+    const { data: caseData, error: caseError } = await client
       .from("cases")
       .update({
         assigned_agent_id: agentId,
@@ -213,7 +235,7 @@ export class RealTimeCaseService {
     if (caseError) throw caseError
 
     // Create assignment record
-    const { data: assignmentData, error: assignmentError } = await this.supabase
+    const { data: assignmentData, error: assignmentError } = await client
       .from("case_assignments")
       .insert({
         case_id: caseId,
@@ -241,7 +263,8 @@ export class RealTimeCaseService {
     priority = "normal",
     isConfidential = true,
   ) {
-    const { data, error } = await this.supabase
+    const client = this.getClient()
+    const { data, error } = await client
       .from("case_notes")
       .insert({
         case_id: caseId,
@@ -270,7 +293,8 @@ export class RealTimeCaseService {
     reason: string,
     escalationLevel = "supervisor",
   ) {
-    const { data, error } = await this.supabase
+    const client = this.getClient()
+    const { data, error } = await client
       .from("case_escalations")
       .insert({
         case_id: caseId,
@@ -294,7 +318,8 @@ export class RealTimeCaseService {
 
   // Get agent's cases
   async getAgentCases(agentId: string) {
-    const { data, error } = await this.supabase
+    const client = this.getClient()
+    const { data, error } = await client
       .from("cases")
       .select(`
         *,
@@ -310,7 +335,8 @@ export class RealTimeCaseService {
 
   // Get case activity feed
   async getCaseActivity(caseId: string, limit = 20) {
-    const { data, error } = await this.supabase
+    const client = this.getClient()
+    const { data, error } = await client
       .from("agent_activity_logs")
       .select(`
         *,
@@ -326,7 +352,8 @@ export class RealTimeCaseService {
 
   // Update agent presence
   async updateAgentPresence(agentId: string, isOnline: boolean) {
-    const { error } = await this.supabase
+    const client = this.getClient()
+    const { error } = await client
       .from("agents")
       .update({
         is_online: isOnline,
@@ -354,7 +381,8 @@ export class RealTimeCaseService {
     description?: string,
     metadata: any = {},
   ) {
-    const { error } = await this.supabase.from("agent_activity_logs").insert({
+    const client = this.getClient()
+    const { error } = await client.from("agent_activity_logs").insert({
       agent_id: agentId,
       activity_type: activityType,
       case_id: caseId,
@@ -367,7 +395,8 @@ export class RealTimeCaseService {
 
   // Get real-time case statistics
   async getCaseStatistics(agentId: string) {
-    const { data, error } = await this.supabase
+    const client = this.getClient()
+    const { data, error } = await client
       .from("cases")
       .select("status, priority")
       .eq("assigned_agent_id", agentId)
@@ -400,11 +429,11 @@ export class RealTimeCaseService {
 
   // Clean up subscriptions
   unsubscribe() {
-    if (this.caseChannel) {
+    if (this.caseChannel && this.supabase) {
       this.supabase.removeChannel(this.caseChannel)
       this.caseChannel = null
     }
-    if (this.agentChannel) {
+    if (this.agentChannel && this.supabase) {
       this.supabase.removeChannel(this.agentChannel)
       this.agentChannel = null
     }
