@@ -23,9 +23,26 @@ export async function POST(request: NextRequest) {
 
     const otp = generateOTP(6)
 
-    const emailResult = await emailService.sendOTP(email, otp, caseId)
-    if (!emailResult.success) {
-      return NextResponse.json({ error: "Failed to send OTP email" }, { status: 500 })
+    // Check SMTP configuration and handle email dispatch gracefully
+    const isTruthy = (v: unknown) => typeof v === "string" && v.trim().length > 0
+    const smtpConfigured =
+      isTruthy(process.env.SMTP_HOST) &&
+      isTruthy(process.env.SMTP_PORT) &&
+      isTruthy(process.env.SMTP_USER) &&
+      isTruthy(process.env.SMTP_PASS) &&
+      isTruthy(process.env.SMTP_FROM || process.env.EMAIL_FROM)
+
+    const isProd = process.env.NODE_ENV === "production"
+    let emailDispatched = false
+
+    if (smtpConfigured) {
+      const emailResult = await emailService.sendOTP(email, otp, caseId)
+      emailDispatched = !!emailResult.success
+      if (!emailResult.success && isProd) {
+        return NextResponse.json({ error: "Failed to send OTP email" }, { status: 500 })
+      }
+    } else {
+      console.warn("[v0] SMTP not configured; skipping OTP email dispatch")
     }
 
     const token = await createOtpSessionToken(email, caseId, otp, OTP_TTL_SECONDS)
