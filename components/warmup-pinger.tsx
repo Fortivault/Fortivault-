@@ -34,15 +34,23 @@ async function ping(url: string, signal: AbortSignal): Promise<Response> {
       signal,
     })
     return res
-  } catch (e) {
-    // Try a HEAD as fallback to still wake the route runtime
-    const res = await fetch(url, {
-      method: "HEAD",
-      cache: "no-store",
-      keepalive: true,
-      signal,
-    })
-    return res
+  } catch (e: any) {
+    // If aborted, do not attempt a second fetch with an already-aborted signal
+    if (e && (e.name === "AbortError" || e.code === 20)) {
+      return new Response("", { status: 204 })
+    }
+    try {
+      // Try a HEAD as fallback to still wake the route runtime
+      const res = await fetch(url, {
+        method: "HEAD",
+        cache: "no-store",
+        keepalive: true,
+      })
+      return res
+    } catch {
+      // Swallow network errors; warming is best-effort
+      return new Response("", { status: 204 })
+    }
   }
 }
 
@@ -76,6 +84,8 @@ export function WarmupGate({ children, minDelayMs = 800, maxWaitMs = 2500 }: War
         try {
           const res = await ping(url, controller.signal)
           return res
+        } catch (_err) {
+          return new Response("", { status: 204 })
         } finally {
           clearTimeout(t)
         }
