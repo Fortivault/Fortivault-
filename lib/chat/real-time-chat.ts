@@ -1,7 +1,7 @@
 "use client"
 
 import { createClient } from "@/lib/supabase/client"
-import type { RealtimeChannel } from "@supabase/supabase-js"
+import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js"
 
 export interface ChatMessage {
   id: string
@@ -25,36 +25,49 @@ export interface ChatRoom {
 }
 
 export class RealTimeChatService {
-  private supabase = createClient()
+  private supabase: SupabaseClient | null = null
   private channel: RealtimeChannel | null = null
+
+  private getClient(): SupabaseClient {
+    if (!this.supabase) {
+      this.supabase = createClient()
+    }
+    return this.supabase
+  }
 
   subscribeToMessages(
     chatRoomId: string,
     onMessage: (message: ChatMessage) => void,
     onTyping?: (data: { user: string; isTyping: boolean }) => void,
   ) {
-    this.channel = this.supabase
-      .channel(`chat_room_${chatRoomId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `chat_room_id=eq.${chatRoomId}`,
-        },
-        (payload) => {
-          onMessage(payload.new as ChatMessage)
-        },
-      )
-      .on("broadcast", { event: "typing" }, ({ payload }) => {
-        if (onTyping) {
-          onTyping(payload)
-        }
-      })
-      .subscribe()
+    try {
+      const client = this.getClient()
+      this.channel = client
+        .channel(`chat_room_${chatRoomId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `chat_room_id=eq.${chatRoomId}`,
+          },
+          (payload) => {
+            onMessage(payload.new as ChatMessage)
+          },
+        )
+        .on("broadcast", { event: "typing" }, ({ payload }) => {
+          if (onTyping) {
+            onTyping(payload)
+          }
+        })
+        .subscribe()
 
-    return this.channel
+      return this.channel
+    } catch (err) {
+      console.warn("Realtime chat unavailable: Supabase is not configured.")
+      return null
+    }
   }
 
   async sendMessage(
@@ -65,7 +78,8 @@ export class RealTimeChatService {
     content: string,
     messageType: "text" | "file" | "system" = "text",
   ) {
-    const { data, error } = await this.supabase
+    const client = this.getClient()
+    const { data, error } = await client
       .from("messages")
       .insert({
         chat_room_id: chatRoomId,
@@ -83,7 +97,8 @@ export class RealTimeChatService {
   }
 
   async getChatRoom(caseId: string) {
-    const { data, error } = await this.supabase
+    const client = this.getClient()
+    const { data, error } = await client
       .from("chat_rooms")
       .select(`
         *,
@@ -98,20 +113,21 @@ export class RealTimeChatService {
   }
 
   async createOrGetChatRoom(caseId: string, victimEmail: string) {
+    const client = this.getClient()
     // First try to get existing chat room
-    const { data: existingRoom } = await this.supabase.from("chat_rooms").select("*").eq("case_id", caseId).single()
+    const { data: existingRoom } = await client.from("chat_rooms").select("*").eq("case_id", caseId).single()
 
     if (existingRoom) {
       return existingRoom
     }
 
     // Create new chat room
-    const { data, error } = await this.supabase
+    const { data, error } = await client
       .from("chat_rooms")
       .insert({
         case_id: caseId,
         victim_email: victimEmail,
-        assigned_agent_id: "550e8400-e29b-41d4-a716-446655440001", // Default to Sarah Martinez
+        assigned_agent_id: "550e8400-e29b-41d4-a716-446655440001",
       })
       .select()
       .single()
@@ -121,7 +137,8 @@ export class RealTimeChatService {
   }
 
   async getMessages(chatRoomId: string, limit = 50) {
-    const { data, error } = await this.supabase
+    const client = this.getClient()
+    const { data, error } = await client
       .from("messages")
       .select("*")
       .eq("chat_room_id", chatRoomId)
@@ -143,7 +160,8 @@ export class RealTimeChatService {
   }
 
   async markMessagesAsRead(chatRoomId: string, senderId: string) {
-    const { error } = await this.supabase
+    const client = this.getClient()
+    const { error } = await client
       .from("messages")
       .update({ is_read: true })
       .eq("chat_room_id", chatRoomId)
@@ -153,7 +171,7 @@ export class RealTimeChatService {
   }
 
   unsubscribe() {
-    if (this.channel) {
+    if (this.channel && this.supabase) {
       this.supabase.removeChannel(this.channel)
       this.channel = null
     }
