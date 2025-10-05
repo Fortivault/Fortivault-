@@ -1,23 +1,20 @@
 "use client"
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
-import type { User, SupabaseClient } from "@supabase/supabase-js"
 
-interface Profile {
+interface UserProfile {
   id: string
   email: string
-  first_name: string | null
-  last_name: string | null
-  role: "user" | "reviewer"
+  firstName?: string | null
+  lastName?: string | null
+  role: "user" | "reviewer" | string
 }
 
 interface AuthContextType {
-  user: User | null
-  profile: Profile | null
+  user: UserProfile | null
   login: (email: string, password: string) => Promise<void>
-  signup: (userData: any) => Promise<void>
+  signup: (userData: { email: string; password: string; firstName?: string; lastName?: string; role?: string }) => Promise<void>
   logout: () => Promise<void>
   isLoading: boolean
 }
@@ -25,139 +22,58 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<Profile | null>(null)
+  const [user, setUser] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [supabase, setSupabase] = useState<SupabaseClient | null>(null)
   const router = useRouter()
 
-  const isSupabaseConfigured = useMemo(() => {
-    return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  useEffect(() => {
+    const saved = localStorage.getItem("userData")
+    if (saved) {
+      try {
+        setUser(JSON.parse(saved))
+      } catch {}
+    }
+    setIsLoading(false)
   }, [])
 
-  useEffect(() => {
-    if (!isSupabaseConfigured) {
-      console.warn("Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.")
-      setIsLoading(false)
-      return
-    }
-
-    try {
-      const client = createClient()
-      setSupabase(client)
-
-      // Get initial session
-      const getInitialSession = async () => {
-        const {
-          data: { session },
-        } = await client.auth.getSession()
-
-        if (session?.user) {
-          setUser(session.user)
-          await fetchProfile(client, session.user.id)
-        }
-
-        setIsLoading(false)
-      }
-
-      getInitialSession()
-
-      // Listen for auth changes
-      const {
-        data: { subscription },
-      } = client.auth.onAuthStateChange(async (_event, session) => {
-        if (session?.user) {
-          setUser(session.user)
-          await fetchProfile(client, session.user.id)
-        } else {
-          setUser(null)
-          setProfile(null)
-        }
-        setIsLoading(false)
-      })
-
-      return () => subscription.unsubscribe()
-    } catch (err) {
-      console.error("Failed to initialize Supabase client:", err)
-      setIsLoading(false)
-    }
-  }, [isSupabaseConfigured])
-
-  const fetchProfile = async (client: SupabaseClient, userId: string) => {
-    try {
-      const { data, error } = await client.from("profiles").select("*").eq("id", userId).single()
-
-      if (error) throw error
-      setProfile(data)
-    } catch (error) {
-      console.error("Error fetching profile:", error)
-    }
-  }
-
   const login = async (email: string, password: string) => {
-    if (!supabase) throw new Error("Authentication is not configured. Please set Supabase environment variables.")
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
     })
-
-    if (error) throw error
+    if (!res.ok) throw new Error("Invalid email or password")
+    const data = await res.json()
+    setUser(data.user)
+    localStorage.setItem("userData", JSON.stringify(data.user))
+    if (data.user.role === "reviewer") router.push("/reviewer")
+    else router.push("/dashboard")
   }
 
-  const signup = async (userData: any) => {
-    if (!supabase) throw new Error("Authentication is not configured. Please set Supabase environment variables.")
-
-    const { error } = await supabase.auth.signUp({
-      email: userData.email,
-      password: userData.password,
-      options: {
-        data: {
-          first_name: userData.firstName,
-          last_name: userData.lastName,
-          role: userData.role || "user",
-        },
-        emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/dashboard`,
-      },
+  const signup = async (userData: { email: string; password: string; firstName?: string; lastName?: string; role?: string }) => {
+    const res = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userData),
     })
-
-    if (error) throw error
-
+    if (!res.ok) throw new Error("Signup failed")
+    const data = await res.json()
+    setUser(data.user)
+    localStorage.setItem("userData", JSON.stringify(data.user))
     router.push("/auth/check-email")
   }
 
   const logout = async () => {
-    if (!supabase) return
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
-
     setUser(null)
-    setProfile(null)
+    localStorage.removeItem("userData")
     router.push("/")
   }
 
-  // Redirect based on profile role when user/profile changes
-  useEffect(() => {
-    if (user && profile && !isLoading) {
-      const currentPath = window.location.pathname
-
-      if (profile.role === "reviewer" && !currentPath.startsWith("/reviewer")) {
-        router.push("/reviewer")
-      } else if (profile.role === "user" && !currentPath.startsWith("/dashboard")) {
-        router.push("/dashboard")
-      }
-    }
-  }, [user, profile, isLoading, router])
-
-  return (
-    <AuthContext.Provider value={{ user, profile, login, signup, logout, isLoading }}>{children}</AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={{ user, login, signup, logout, isLoading }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
-  }
+  if (context === undefined) throw new Error("useAuth must be used within an AuthProvider")
   return context
 }

@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String?
+  lastName     String?
+  role         String   @default("user")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AdminUser {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Agent {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  specialization String?
+  role         String   @default("agent")
+  isOnline     Boolean  @default(false)
+  lastSeen     DateTime?
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  cases        Case[]   @relation("AgentCases")
+  chatRooms    ChatRoom[] @relation("AgentChatRooms")
+}
+
+model Case {
+  id                        String   @id @default(uuid())
+  caseId                    String   @unique
+  victimEmail               String
+  victimPhone               String?
+  scamType                  String
+  amount                    Float?
+  currency                  String?
+  timeline                  String?
+  description               String?
+  status                    String   @default("Intake")
+  priority                  String   @default("Medium")
+  assignedAgentId           String?
+  assignedAgent             Agent?   @relation("AgentCases", fields: [assignedAgentId], references: [id])
+  estimatedRecoveryAmount   Float?
+  recoveryProbability       Float?
+  lastAgentContact          DateTime?
+  victimSatisfactionRating  Int?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  chatRooms                 ChatRoom[]
+}
+
+model ChatRoom {
+  id               String   @id @default(uuid())
+  caseId           String
+  case             Case     @relation(fields: [caseId], references: [id])
+  victimEmail      String
+  assignedAgentId  String?
+  assignedAgent    Agent?   @relation("AgentChatRooms", fields: [assignedAgentId], references: [id])
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  messages         Message[]
+}
+
+model Message {
+  id          String   @id @default(uuid())
+  chatRoomId  String
+  chatRoom    ChatRoom @relation(fields: [chatRoomId], references: [id])
+  senderType  String
+  senderId    String
+  senderName  String
+  content     String
+  messageType String   @default("text")
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}

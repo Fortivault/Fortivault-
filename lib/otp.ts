@@ -20,7 +20,7 @@ function fromBase64url(input: string): Buffer {
 }
 
 function getSecret(): string {
-  const secret = process.env.SUPABASE_JWT_SECRET || process.env.NEXTAUTH_SECRET || "development-secret"
+  const secret = process.env.NEXTAUTH_SECRET || "development-secret"
   return secret
 }
 

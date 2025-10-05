@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { type NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
+import { prisma } from "@/lib/prisma"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -13,33 +14,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and password required" }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const admin = await prisma.adminUser.findUnique({ where: { email } })
 
-    const { data: admin, error } = await supabase
-      .from("admin_users")
-      .select("*")
-      .eq("email", email)
-      .eq("status", "active")
-      .single()
-
-    if (error || !admin) {
+    if (!admin || admin.status !== "active") {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, admin.password_hash)
+    const isValidPassword = await bcrypt.compare(password, admin.passwordHash)
 
     if (!isValidPassword) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // Return admin data without password
-    const { password_hash, ...adminData } = admin
+    const { passwordHash, ...adminData } = admin
 
-    return NextResponse.json({
-      success: true,
-      admin: adminData,
-    })
+    return NextResponse.json({ success: true, admin: adminData })
   } catch (error) {
     console.error("[v0] Admin auth error:", error)
     return NextResponse.json({ error: "Authentication failed" }, { status: 500 })

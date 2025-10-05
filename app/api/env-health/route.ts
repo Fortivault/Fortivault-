@@ -21,12 +21,6 @@ export async function GET(_req: NextRequest) {
   if (!isTruthy(smtpPass)) smtpMissing.push("SMTP_PASS")
   if (!isTruthy(smtpFrom)) smtpMissing.push("SMTP_FROM/EMAIL_FROM")
 
-  const supabasePublicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const supabaseService = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  const postgresUrl = process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_PRISMA_URL
-
   const formspreePublic = process.env.NEXT_PUBLIC_FORMSPREE_URL
 
   const details = {
@@ -34,23 +28,20 @@ export async function GET(_req: NextRequest) {
       configured: smtpMissing.length === 0,
       missing: smtpMissing,
     },
-    supabase: {
-      publicConfigured: isTruthy(supabasePublicUrl) && isTruthy(supabaseAnon),
-      serviceRoleConfigured: isTruthy(supabaseService),
-    },
-    postgres: {
-      configured: isTruthy(postgresUrl),
+    database: {
+      provider: "sqlite",
+      configured: true,
     },
     forms: {
       formspreePublicConfigured: isTruthy(formspreePublic),
     },
     notes: [
       "This endpoint validates presence only and never returns secret values.",
-      "Service connectivity is not tested to avoid leaking sensitive information.",
+      "Database uses local SQLite via Prisma for dev/test.",
     ],
   }
 
-  const ok = details.smtp.configured && details.supabase.publicConfigured && details.postgres.configured
+  const ok = details.smtp.configured && details.database.configured
 
   return NextResponse.json({ ok, details })
 }

@@ -1,42 +1,31 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { prisma } from "@/lib/prisma"
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
-    const supabase = await createClient()
 
     const caseData = {
-      case_id: formData.get("caseId") as string,
-      victim_email: formData.get("contactEmail") as string,
-      victim_phone: (formData.get("contactPhone") as string) || null,
-      scam_type: formData.get("scamType") as string,
-      amount: Number.parseFloat(formData.get("amount") as string),
-      currency: formData.get("currency") as string,
-      timeline: formData.get("timeline") as string,
-      description: formData.get("description") as string,
-      transaction_hashes: JSON.parse((formData.get("transactionHashes") as string) || "[]"),
-      bank_references: JSON.parse((formData.get("bankReferences") as string) || "[]"),
-      evidence_file_count: Number.parseInt((formData.get("evidenceFileCount") as string) || "0"),
+      caseId: formData.get("caseId") as string,
+      victimEmail: formData.get("contactEmail") as string,
+      victimPhone: (formData.get("contactPhone") as string) || null,
+      scamType: formData.get("scamType") as string,
+      amount: formData.get("amount") ? Number.parseFloat(formData.get("amount") as string) : null,
+      currency: (formData.get("currency") as string) || null,
+      timeline: (formData.get("timeline") as string) || null,
+      description: (formData.get("description") as string) || null,
       status: "Intake",
     }
 
-    const { data: caseRecord, error: caseError } = await supabase.from("cases").insert(caseData).select().single()
+    const createdCase = await prisma.case.create({ data: caseData })
 
-    if (caseError) {
-      console.error("[v0] Error saving case to Supabase:", caseError)
-      throw caseError
-    }
-
-    const { error: chatRoomError } = await supabase.from("chat_rooms").insert({
-      case_id: caseRecord.id,
-      victim_email: caseData.victim_email,
-      assigned_agent_id: "550e8400-e29b-41d4-a716-446655440001", // Default agent
+    await prisma.chatRoom.create({
+      data: {
+        caseId: createdCase.id,
+        victimEmail: caseData.victimEmail,
+        assignedAgentId: "550e8400-e29b-41d4-a716-446655440001",
+      },
     })
-
-    if (chatRoomError) {
-      console.error("[v0] Error creating chat room:", chatRoomError)
-    }
 
     const formspreeEndpoint = process.env.FORMSPREE_URL
 
@@ -48,13 +37,12 @@ export async function POST(request: NextRequest) {
         })
       } catch (formspreeError) {
         console.error("[v0] Formspree submission failed:", formspreeError)
-        // Don't fail the entire request if Formspree fails
       }
     }
 
     return NextResponse.json({
       success: true,
-      caseId: caseData.case_id,
+      caseId: caseData.caseId,
       message: "Case submitted successfully",
     })
   } catch (error) {
